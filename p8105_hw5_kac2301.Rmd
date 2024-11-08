@@ -1,0 +1,16 @@
+---
+title: "p8105_hw5_kac2301"
+author: "Kate Colvin"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+# Problem 1
+
+# Problem 2
+
+# Problem 3 
