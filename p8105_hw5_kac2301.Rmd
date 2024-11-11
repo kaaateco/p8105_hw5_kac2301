@@ -5,12 +5,101 @@ output: github_document
 ---
 
 ```{r setup, include=FALSE}
+
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
 
 ```
 
 # Problem 1
 
+sdjfsjkd
+
 # Problem 2
 
+
+
+```{r}
+
+# Creating output vector to store t.test results 
+output <- vector("list", 35000)
+
+n = 30
+mu = 0:6
+sigma = 5 
+
+for(j in mu){
+  k <- 1+(j*5000)
+  # Looping over 5000 data sets 
+  for (i in 1:5000) {
+      sim_data = tibble(
+        x = rnorm(n, mean = j, sd = sigma),
+      )
+      output[[k]] <- t.test(sim_data, mu = 0, conf.level = 0.95) %>% 
+        broom::tidy() %>% 
+        select(estimate, p.value) %>% 
+        mutate(set_mu = j)
+      k <- k + 1
+  }
+}
+
+sim_results <- bind_rows(output) %>% 
+  mutate(null_rejected = p.value <= 0.05)
+
+```
+
+
+Creating plot of the power vs. the true mean
+
+```{r}
+
+sim_results %>% 
+  ggplot(aes(x = set_mu, fill = null_rejected)) + 
+  geom_bar(position = "fill")
+
+sim_results
+
+sim_results %>% 
+  group_by(set_mu, null_rejected) %>% 
+  summarize(prop_rejected = n()/5000) %>% 
+  filter(null_rejected == TRUE) %>% 
+  ggplot(aes(x = set_mu, y = prop_rejected)) + 
+  geom_col()
+
+```
+
+** Describe**
+
+```{r}
+
+sim_results %>% 
+  group_by(set_mu) %>% 
+  summarize(avg_est = mean(estimate)) %>% 
+  ggplot(aes(x = mu, y = avg_est)) +
+  geom_point()
+
+sim_results %>% 
+  filter(null_rejected == TRUE) %>% 
+  group_by(set_mu) %>% 
+  summarize(avg_est = mean(estimate)) %>% 
+  ggplot(aes(x = set_mu, y = avg_est)) +
+  geom_point()
+
+sim_results
+
+```
+
+
 # Problem 3 
+
+** DESCRIBE THE RAW DATA **
+
+```{r} 
+
+# homicide_df <- read_csv("homicide-data.csv") %>% 
+#  mutate(city_state = )
+
+# View(homicide_df) %>% 
+
+```
+
