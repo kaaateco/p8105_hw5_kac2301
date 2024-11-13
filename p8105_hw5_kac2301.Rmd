@@ -13,15 +13,38 @@ library(tidyverse)
 
 # Problem 1
 
-sdjfsjkd
+```{r}
+
+birthday_duplicates = function(n){
+  return(length(unique(sample.int(365, n, replace = TRUE))) != n)
+}
+
+n = 50
+output <- c()
+
+for(i in 2:n){
+  output[i-1] = 0
+  for(j in 1:10000){
+    output[i-1] = output[i-1] + birthday_duplicates(i)
+  }
+}
+
+birth_df <- tibble(duplicate_prop = output/10000) %>% 
+  mutate(n = 2:50)
+
+birth_df %>% ggplot(aes(x = n, y = duplicate_prop)) +
+  geom_point()
+
+
+```
+
 
 # Problem 2
 
-
+Producing simulation:
 
 ```{r}
 
-# Creating output vector to store t.test results 
 output <- vector("list", 35000)
 
 n = 30
@@ -45,30 +68,25 @@ for(j in mu){
 
 sim_results <- bind_rows(output) %>% 
   mutate(null_rejected = p.value <= 0.05)
+sim_results
 
 ```
 
 
-Creating plot of the power vs. the true mean
+Creating plot of the power vs. the true mean:
 
 ```{r}
 
 sim_results %>% 
   ggplot(aes(x = set_mu, fill = null_rejected)) + 
-  geom_bar(position = "fill")
-
-sim_results
-
-sim_results %>% 
-  group_by(set_mu, null_rejected) %>% 
-  summarize(prop_rejected = n()/5000) %>% 
-  filter(null_rejected == TRUE) %>% 
-  ggplot(aes(x = set_mu, y = prop_rejected)) + 
-  geom_col()
+  geom_bar(position = "fill") + 
+  xlab("Actual Mean") + ylab("Proportion")
 
 ```
 
-** Describe**
+As effect size increases (in this case, the difference between 0 and the actual mean), so does the power. When the actual mean is 6, which is very far from 0, we correctly reject the null 100% of the time. 
+
+Creating plots comparing the average estimated mean and the true mean:
 
 ```{r}
 
@@ -76,30 +94,109 @@ sim_results %>%
   group_by(set_mu) %>% 
   summarize(avg_est = mean(estimate)) %>% 
   ggplot(aes(x = mu, y = avg_est)) +
-  geom_point()
+  geom_point() +
+  geom_abline() +
+  ggtitle("Average Estimate vs. True Mean")
+
 
 sim_results %>% 
   filter(null_rejected == TRUE) %>% 
   group_by(set_mu) %>% 
   summarize(avg_est = mean(estimate)) %>% 
   ggplot(aes(x = set_mu, y = avg_est)) +
-  geom_point()
-
-sim_results
+  geom_point() + 
+  geom_abline() + 
+  ggtitle("Average Estimate for Samples Where the Null was Rejected vs. True Mean")
 
 ```
+
+The average of the estimated sample means across tests where the null was rejected is not approximately equal to the true mean across all the selected values. When we set the true mean to 0, 4, 5, and 6, the average estimated mean is consistent with those values. This is because for means 4, 5, and 6, we rejected the null more than 99% of the time, so the average of the estimated means where the null was rejected is basically just the same as the average of the estimated means overall. When the mean is set to 0, the estimated sample means for the cases where we rejected the null will still have values close to 0. 
+
+When the true mean is set to 1, 2, or 3, we can see on the graph that the average estimated sample means across tests where the null was rejected are higher than their respective true means. This is because cases where we rejected the null are likely to have means further away from 0, since this would make us more likely to be able to detect that the true underlying mean is not 0. 
+
 
 
 # Problem 3 
 
-** DESCRIBE THE RAW DATA **
+The raw data, shown below, describes the homicides in 50 large American cities. It has 12 columns and 52,179 entries, and each row represents a person killed in a homicide. Some of the important variables include the reported date, victim age and race, the city where they were killed, and disposition (status of the case).
 
 ```{r} 
 
-# homicide_df <- read_csv("homicide-data.csv") %>% 
-#  mutate(city_state = )
-
-# View(homicide_df) %>% 
+homicide_df <- read_csv("homicide-data.csv")
+head(homicide_df)
 
 ```
+
+Creating city_state variable and summarizing the total number of homicides and unsolved homicides: 
+
+```{r}
+
+# Obtaining solved/unsolved counts
+
+homicide_status_df <- homicide_df %>% 
+  unite(city_state, city, state, sep = ", ") %>% 
+  mutate(case_status = 
+           case_match(
+             disposition, 
+             "Closed without arrest" ~ "unsolved",
+             "Open/No arrest" ~ "unsolved", 
+             "Closed by arrest" ~ "solved"
+           )) %>% 
+  group_by(city_state, case_status) %>% 
+  summarize(count = n())
+
+# Obtaining totals by city 
+
+homicide_count_df <- homicide_df %>% 
+  unite(city_state, city, state, sep = ", ") %>%
+  group_by(city_state) %>% 
+  summarize(total = n())
+
+# Merging counts by status and totals 
+
+homicide_table <- left_join(homicide_status_df, homicide_count_df, by = "city_state") %>% 
+  pivot_wider(names_from = case_status, 
+              values_from = count) %>% 
+  replace_na(list(unsolved = 0))
+homicide_table
+
+```
+
+For Baltimore, MD, using prop.test to estimate the proportion of homicides that are unsolved:
+
+```{r}
+
+balt_test <- prop.test(1825, 2827) %>% 
+  broom::tidy() %>% select(estimate, conf.low, conf.high)
+
+balt_test
+
+```
+
+For each city, using prop.test to estimate the proportion of homicides that are unsolved:
+
+```{r}
+
+city_tests <- homicide_table %>% 
+  mutate(
+    est_props = map((map2(unsolved, total, \(un, tot) prop.test(un, tot))), broom::tidy)) %>% 
+  unnest(cols = c(est_props)) %>% 
+  select(city_state, unsolved, total, estimate, conf.low, conf.high)
+
+city_tests
+
+```
+
+Creating a plot that shows the estimates and CIs for each city:
+
+```{r}
+
+city_tests %>% ggplot(aes(x = fct_reorder(city_state, estimate), y = estimate)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.5) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  xlab("city_state")
+
+```
+
 
